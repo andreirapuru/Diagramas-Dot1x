@@ -117,8 +117,6 @@ EAP-TLS is **required** for all 802.1X authentication and provides the highest s
 
 ### MAC Authentication Bypass (MAB)
 
-### MAB Security Controls
-
 ```mermaid
 flowchart TD
     DEVICE[Device connects] --> DOT1X{802.1X<br/>capable?}
