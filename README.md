@@ -101,20 +101,6 @@ sequenceDiagram
     end
 ```
 
-### Requisitos EAP-TLS
-
-EAP-TLS is **required** for all 802.1X authentication and provides the highest security through mutual certificate authentication:
-
-| Requirement | Specification | Rationale |
-|-------------|--------------|-----------|
-| Client certificate | X.509v3 with EKU for client auth | Device/user identity |
-| Server certificate | X.509v3 with EKU for server auth | Server identity verification |
-| Key length | RSA 2048-bit minimum, 3072-bit recommended | Cryptographic strength |
-| Hash algorithm | SHA-256 minimum | Collision resistance |
-| Certificate validation | Full chain validation, CRL/OCSP | Revocation checking |
-| TLS version | TLS 1.3 minimum (RFC 8446) | Protocol security |
-
-
 ### MAC Authentication Bypass (MAB)
 
 ```mermaid
@@ -196,19 +182,6 @@ graph TB
     RAD_P & RAD_S --> CA
     RAD_P & RAD_S --> NPS
 ```
-
-### RADIUS Server Configuration
-
-| Parameter | Primary Server | Secondary Server |
-|-----------|---------------|------------------|
-| Authentication port | UDP 1812 | UDP 1812 |
-| Accounting port | UDP 1813 | UDP 1813 |
-| Shared secret length | 32+ characters | 32+ characters (different) |
-| Failover timeout | 5 seconds | — |
-| Dead time | 15 minutes | — |
-| EAP session timeout | 60 seconds | 60 seconds |
-| RADIUS request timeout | 5 seconds | 5 seconds |
-| Maximum retries | 3 | 3 |
 
 ### RADIUS Attributes for Policy Enforcement
 
