@@ -23,3 +23,575 @@ graph LR
     RADIUS <--> AD
     RADIUS <--> CA
     
+
+### Authentication Flow
+
+```mermaid
+sequenceDiagram
+    participant S as Supplicant
+    participant A as Authenticator
+    participant R as RADIUS Server
+    participant D as Directory/CA
+
+    Note over S,A: Port starts in unauthorized state
+    S->>A: EAPoL-Start
+    A->>S: EAP-Request/Identity
+    S->>A: EAP-Response/Identity
+    A->>R: RADIUS Access-Request (EAP)
+
+    Note over S,R: EAP Method Exchange (e.g., EAP-TLS)
+    R->>A: RADIUS Access-Challenge
+    A->>S: EAP-Request (Method)
+    S->>A: EAP-Response (Credentials)
+    A->>R: RADIUS Access-Request
+
+    R->>D: Validate credentials/certificate
+    D->>R: Validation result
+
+    alt Authentication Success
+        R->>A: RADIUS Access-Accept<br/>(VLAN, ACL attributes)
+        A->>S: EAP-Success
+        Note over S,A: Port transitions to authorized state
+    else Authentication Failure
+        R->>A: RADIUS Access-Reject
+        A->>S: EAP-Failure
+        Note over S,A: Port remains unauthorized
+    end
+```
+
+### Port States
+
+```mermaid
+stateDiagram-v2
+    [*] --> Unauthorized: Port link up
+    Unauthorized --> Authenticating: EAPoL-Start received
+    Authenticating --> Authorized: Access-Accept
+    Authenticating --> Unauthorized: Access-Reject
+    Authenticating --> Unauthorized: Timeout
+    Authorized --> Unauthorized: Logoff/Link down
+    Authorized --> Reauthenticating: Reauth timer
+    Reauthenticating --> Authorized: Access-Accept
+    Reauthenticating --> Unauthorized: Access-Reject
+
+    note right of Unauthorized
+        No traffic permitted
+        except EAPoL frames
+    end note
+
+    note right of Authorized
+        Full network access
+        per RADIUS attributes
+    end note
+```
+
+## EAP Method Standards
+
+### Method Comparison
+
+| EAP Method | Standard | Security Level | Certificate Required | Status (2026) |
+|------------|----------|----------------|---------------------|---------------|
+| **EAP-TLS** | RFC 9190 | Highest | Client + Server | ✅ **Required** — Only acceptable method |
+| EAP-TEAP | RFC 7170 | High | Server (client optional) | ❌ **Forbidden** |
+| PEAP (MSCHAPv2) | Microsoft | Medium | Server only | ❌ **Forbidden** |
+| EAP-TTLS | RFC 5281 | Medium | Server only | ❌ **Forbidden** |
+| EAP-MD5 | RFC 3748 | Low | None | ❌ **Forbidden** |
+
+> **Policy (Effective 2026):** EAP-TLS is the **only** permitted EAP method for municipal networks. All other EAP methods are forbidden due to insufficient security guarantees. Devices that cannot support EAP-TLS must use MAC Authentication Bypass (MAB) with appropriate network segmentation and monitoring.
+
+### EAP Method Selection
+
+```mermaid
+flowchart TD
+    START[Device Type Assessment] --> Q1{Device supports<br/>certificates?}
+    Q1 -->|Yes| Q2{MDM/PKI<br/>managed?}
+    Q1 -->|No| MAB["MAC Authentication Bypass<br/>(With segmentation + monitoring)"]
+
+    Q2 -->|Yes| EAPTLS["✅ EAP-TLS<br/>(Only permitted method)"]
+    Q2 -->|No| ENROLL["Enroll in PKI/MDM<br/>before deployment"]
+
+    ENROLL --> EAPTLS
+
+    EAPTLS --> RESULT[Apply VLAN/ACL policy]
+    MAB --> RESULT
+```
+
+> **Note:** Devices capable of 802.1X but not EAP-TLS must be enrolled in the PKI before network deployment. There is no fallback to password-based EAP methods.
+
+### EAP-TLS Requirements (Mandatory)
+
+EAP-TLS is **required** for all 802.1X authentication and provides the highest security through mutual certificate authentication:
+
+| Requirement | Specification | Rationale |
+|-------------|--------------|-----------|
+| Client certificate | X.509v3 with EKU for client auth | Device/user identity |
+| Server certificate | X.509v3 with EKU for server auth | Server identity verification |
+| Key length | RSA 2048-bit minimum, 3072-bit recommended | Cryptographic strength |
+| Hash algorithm | SHA-256 minimum | Collision resistance |
+| Certificate validation | Full chain validation, CRL/OCSP | Revocation checking |
+| TLS version | TLS 1.3 minimum (RFC 8446) | Protocol security |
+
+## RADIUS Architecture
+
+### Redundant Deployment
+
+```mermaid
+graph TB
+    subgraph SITES["Network Sites"]
+        subgraph SITE_A["Site A"]
+            SW_A1["Switch A1"]
+            SW_A2["Switch A2"]
+            AP_A["Access Points"]
+        end
+
+        subgraph SITE_B["Site B"]
+            SW_B1["Switch B1"]
+            AP_B["Access Points"]
+        end
+    end
+
+    subgraph RADIUS_INFRA["RADIUS Infrastructure"]
+        RAD_P["Primary RADIUS<br/>(Datacenter A)"]
+        RAD_S["Secondary RADIUS<br/>(Datacenter B)"]
+    end
+
+    subgraph BACKEND["Backend Services"]
+        AD["Directory Service"]
+        CA["Certificate Authority"]
+        NPS["Network Policy Service"]
+    end
+
+    SW_A1 & SW_A2 & AP_A -->|Primary| RAD_P
+    SW_A1 & SW_A2 & AP_A -.->|Failover| RAD_S
+    SW_B1 & AP_B -->|Primary| RAD_P
+    SW_B1 & AP_B -.->|Failover| RAD_S
+
+    RAD_P & RAD_S --> AD
+    RAD_P & RAD_S --> CA
+    RAD_P & RAD_S --> NPS
+```
+
+### RADIUS Server Configuration
+
+| Parameter | Primary Server | Secondary Server |
+|-----------|---------------|------------------|
+| Authentication port | UDP 1812 | UDP 1812 |
+| Accounting port | UDP 1813 | UDP 1813 |
+| Shared secret length | 32+ characters | 32+ characters (different) |
+| Failover timeout | 5 seconds | — |
+| Dead time | 15 minutes | — |
+| EAP session timeout | 60 seconds | 60 seconds |
+| RADIUS request timeout | 5 seconds | 5 seconds |
+| Maximum retries | 3 | 3 |
+
+### RADIUS Attributes for Policy Enforcement
+
+| Attribute | Number | Purpose | Example |
+|-----------|--------|---------|---------|
+| Tunnel-Type | 64 | VLAN assignment | VLAN |
+| Tunnel-Medium-Type | 65 | Medium type | IEEE-802 |
+| Tunnel-Private-Group-ID | 81 | VLAN ID/name | 20 |
+| Filter-Id | 11 | ACL assignment | CORP-ACL |
+| Session-Timeout | 27 | Reauth interval | 28800 (8 hours) |
+| Termination-Action | 29 | Post-session action | RADIUS-Request |
+
+## Wired 802.1X Implementation
+
+### Switch Port Configuration Standards
+
+```mermaid
+graph TD
+    subgraph PORT_TYPES["Port Authentication Modes"]
+        SINGLE["Single-Host Mode<br/>One MAC per port"]
+        MULTI_AUTH["Multi-Auth Mode<br/>Multiple MACs, each authenticated"]
+        MULTI_DOMAIN["Multi-Domain Mode<br/>Voice + Data VLANs"]
+        MULTI_HOST["Multi-Host Mode<br/>One auth, all allowed"]
+    end
+
+    SINGLE --> USE1["Single workstation ports"]
+    MULTI_AUTH --> USE2["Conference rooms<br/>with hubs"]
+    MULTI_DOMAIN --> USE3["IP phones with<br/>passthrough PC"]
+    MULTI_HOST --> USE4["Not recommended<br/>(Security risk)"]
+```
+
+### Port Configuration Requirements
+
+| Setting | Standard Value | Rationale |
+|---------|---------------|-----------|
+| Authentication mode | Multi-Domain (voice+data) or Multi-Auth | Support IP phones and conferencing |
+| Host mode | Multi-auth preferred | Per-device authentication |
+| Periodic reauthentication | Enabled, 8 hours | Session validation |
+| Quiet period | 60 seconds | Retry delay after failure |
+| Tx period | 30 seconds | EAP request interval |
+| Supplicant timeout | 30 seconds | Client response timeout |
+| Server timeout | 30 seconds | RADIUS response timeout |
+| Maximum requests | 3 | Retry attempts |
+| Guest VLAN | Enabled for designated ports | Unauthenticated access where required |
+| Auth-fail VLAN | Enabled | Quarantine for failed auth |
+| Critical VLAN | Enabled | Access when RADIUS unavailable |
+
+### Port Exception Categories
+
+```mermaid
+flowchart TD
+    subgraph EXCEPTIONS["802.1X Port Exceptions"]
+        INFRA["Infrastructure Ports<br/>- Uplinks to other switches<br/>- Router connections<br/>- Server ports (authenticated elsewhere)"]
+
+        DEDICATED["Dedicated Device Ports<br/>- Printers (MAB)<br/>- Building systems (MAB)<br/>- Legacy devices (MAB)"]
+
+        PUBLIC["Public Access Ports<br/>- Lobby kiosks<br/>- Public terminals<br/>(Separate VLAN, filtered)"]
+    end
+
+    INFRA --> TRUST["Trusted port<br/>(No 802.1X)"]
+    DEDICATED --> MAB_AUTH["MAB with device<br/>registration"]
+    PUBLIC --> GUEST["Guest VLAN<br/>(Internet only)"]
+```
+
+## MAC Authentication Bypass (MAB)
+
+### MAB Use Cases
+
+MAB provides network access for devices that cannot perform 802.1X authentication:
+
+| Device Category | Examples | MAB Policy |
+|-----------------|----------|------------|
+| Network printers | Enterprise print devices | Registered MAC, printer VLAN |
+| Building systems | HVAC, access control, elevators | Registered MAC, IoT VLAN |
+| Medical devices | Monitors, diagnostic equipment | Registered MAC, restricted VLAN |
+| AV equipment | Displays, projectors | Registered MAC, AV VLAN |
+| Legacy systems | Older equipment without supplicant | Registered MAC, legacy VLAN |
+
+### MAB Security Controls
+
+```mermaid
+flowchart TD
+    DEVICE[Device connects] --> DOT1X{802.1X<br/>capable?}
+    DOT1X -->|Yes| AUTH[Normal 802.1X auth]
+    DOT1X -->|No/Timeout| MAB_START[MAB initiated]
+
+    MAB_START --> MAC_CHECK{MAC in<br/>database?}
+    MAC_CHECK -->|Yes| PROFILE{Device profile<br/>match?}
+    MAC_CHECK -->|No| QUARANTINE[Quarantine VLAN]
+
+    PROFILE -->|Yes| ASSIGN[Assign policy VLAN]
+    PROFILE -->|No| QUARANTINE
+
+    ASSIGN --> MONITOR[Continuous monitoring<br/>for anomalies]
+    QUARANTINE --> ALERT[Security alert]
+```
+
+### MAB Configuration Requirements
+
+| Setting | Value | Rationale |
+|---------|-------|-----------|
+| MAB timeout | 30 seconds after 802.1X timeout | Allow 802.1X attempt first |
+| MAC format | Lowercase, hyphen-separated | Consistency |
+| RADIUS attribute | Calling-Station-Id | MAC identification |
+| Device profiling | Required | Validate device type |
+| Re-profiling interval | 24 hours | Detect MAC spoofing |
+| Unknown MAC policy | Deny or quarantine | Security default |
+
+## Wireless 802.1X Integration
+
+### Wireless-Specific Considerations
+
+| Aspect | Wired | Wireless | Implication |
+|--------|-------|----------|-------------|
+| Physical port | One device per port | Multiple clients per AP | Use multi-auth mode on AP |
+| Roaming | N/A | Client moves between APs | Fast BSS transition (802.11r) |
+| Key management | EAPoL-Key | 4-way handshake + PMK caching | OKC/802.11r for fast roaming |
+| Encryption | Optional (MACsec) | Required (WPA3) | Always encrypt wireless |
+
+### Fast Roaming Support
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant AP1 as Current AP
+    participant AP2 as Target AP
+    participant R as RADIUS
+
+    Note over C,AP1: Initial authentication
+    C->>AP1: Full 802.1X + 4-way handshake
+    AP1->>R: Full RADIUS exchange
+    R->>AP1: PMK generated
+
+    Note over C,AP2: Client roams (802.11r FT)
+    C->>AP2: FT Authentication Request<br/>(includes PMKR1)
+    AP2->>AP1: PMK-R1 request (over DS)
+    AP1->>AP2: PMK-R1 response
+    AP2->>C: FT Authentication Response
+    C->>AP2: Reassociation Request
+    AP2->>C: Reassociation Response
+
+    Note over C,AP2: Roam complete<br/>(<50ms typical)
+```
+
+## Deployment Phases
+
+### Phased Rollout Strategy
+
+```mermaid
+gantt
+    title 802.1X Deployment Phases
+    dateFormat  YYYY-MM-DD
+
+    section Phase 1: Preparation
+    PKI/Certificate infrastructure    :p1a, 2026-03-01, 30d
+    RADIUS server deployment          :p1b, 2026-03-01, 21d
+    Device inventory and profiling    :p1c, 2026-03-15, 30d
+    Supplicant testing               :p1d, 2026-03-15, 21d
+
+    section Phase 2: Monitor Mode
+    Enable 802.1X in monitor mode     :p2a, 2026-04-15, 30d
+    Identify non-compliant devices    :p2b, 2026-04-15, 30d
+    Remediate/register devices        :p2c, 2026-05-01, 30d
+
+    section Phase 3: Enforcement
+    Low-risk ports enforcement        :p3a, 2026-06-01, 21d
+    Medium-risk ports enforcement     :p3b, 2026-06-15, 21d
+    Full enforcement                  :p3c, 2026-07-01, 14d
+
+    section Phase 4: Optimization
+    Tune policies and exceptions      :p4a, 2026-07-15, 30d
+    Performance optimization          :p4b, 2026-08-01, 30d
+```
+
+### Phase Descriptions
+
+| Phase | Objective | Success Criteria |
+|-------|-----------|------------------|
+| **1. Preparation** | Build infrastructure, inventory devices | PKI operational, RADIUS redundant, 95% devices profiled |
+| **2. Monitor Mode** | Identify authentication failures without blocking | <5% unknown devices, all failures categorized |
+| **3. Enforcement** | Enable authentication requirement | <1% legitimate access failures, help desk trained |
+| **4. Optimization** | Tune for performance and user experience | <500ms auth time, zero RADIUS outages |
+
+## Industry Adoption Data
+
+### Enterprise 802.1X Deployment Statistics
+
+| Metric | Value | Source | Year |
+|--------|-------|--------|------|
+| Enterprise 802.1X adoption (wired) | 72% | EMA Network Access Control Report | 2024 |
+| Enterprise 802.1X adoption (wireless) | 89% | EMA Network Access Control Report | 2024 |
+| EAP-TLS usage (of 802.1X deployments) | 48% | SANS Network Security Survey | 2024 |
+| PEAP/MSCHAPv2 usage | 38% | SANS Network Security Survey | 2024 |
+| MAB for IoT devices | 67% | Ponemon IoT Security Study | 2024 |
+| Average deployment time (enterprise) | 6-12 months | Industry benchmark | 2024 |
+
+### Municipal and Government Adoption
+
+| Sector | 802.1X Adoption | Notes |
+|--------|-----------------|-------|
+| Federal agencies (FISMA) | 94% | Mandated by NIST |
+| State government | 78% | Growing requirement |
+| Municipal (large cities) | 65% | Increasing adoption |
+| Municipal (mid-size) | 42% | Cost barrier |
+| K-12 education | 58% | E-Rate funded |
+
+## Cost-Performance Analysis
+
+### Implementation Costs
+
+| Component | Initial Cost | Annual Cost | Notes |
+|-----------|--------------|-------------|-------|
+| RADIUS servers (2x HA) | $0-15,000 | $0-5,000 | Included with directory services or dedicated |
+| Certificate Authority (internal) | $0 | $2,000-5,000 | PKI maintenance |
+| Network Policy Server/NAC | $0-50,000 | $10,000-25,000 | Varies by sophistication |
+| Supplicant software | $0 | $0 | Built into modern OS |
+| Switch/AP 802.1X support | $0 | $0 | Standard feature |
+| Staff training | $5,000-10,000 | $2,000 | Initial + ongoing |
+| **Total (500 ports)** | **$5,000-75,000** | **$14,000-37,000** | — |
+| **Per-port first year** | **$38-224** | — | Varies by existing infrastructure |
+
+### Return on Investment
+
+| Benefit | Estimated Annual Value | Basis |
+|---------|------------------------|-------|
+| Prevented unauthorized access | $25,000-250,000 | Industry breach costs |
+| Reduced malware incidents | $15,000-100,000 | Lateral movement prevention |
+| Compliance (CJIS, HIPAA, PCI) | Required | Audit findings prevention |
+| Simplified access management | $10,000-30,000 | Automated provisioning |
+| Network visibility | $5,000-20,000 | Device inventory accuracy |
+
+### TCO Comparison: 802.1X vs. No NAC
+
+```mermaid
+graph LR
+    subgraph WITH_8021X["With 802.1X (5-year TCO)"]
+        W_IMPL["Implementation: $50K"]
+        W_OPS["Operations: $100K"]
+        W_BREACH["Breach cost: $25K<br/>(reduced incidents)"]
+        W_TOTAL["Total: ~$175K"]
+    end
+
+    subgraph WITHOUT["Without 802.1X (5-year TCO)"]
+        WO_IMPL["Implementation: $0"]
+        WO_OPS["Manual management: $150K"]
+        WO_BREACH["Breach cost: $200K<br/>(uncontrolled access)"]
+        WO_TOTAL["Total: ~$350K"]
+    end
+
+    W_TOTAL -->|"50% lower TCO"| SAVINGS["$175K savings<br/>over 5 years"]
+```
+
+## Security Considerations
+
+### Threat Mitigation
+
+| Threat | Without 802.1X | With 802.1X |
+|--------|----------------|-------------|
+| Unauthorized device connection | Possible | Blocked at port |
+| MAC spoofing | No detection | Limited by profiling |
+| Rogue access points | Not controlled | Detected/blocked |
+| Lateral movement | Unrestricted | VLAN isolation |
+| Credential theft | Network-wide impact | Limited to authorized resources |
+| Physical port abuse | Any device connects | Authentication required |
+
+### MACsec Integration (IEEE 802.1AE)
+
+For high-security environments, 802.1X can enable MACsec encryption:
+
+```mermaid
+flowchart LR
+    subgraph STANDARD["Standard 802.1X"]
+        S_AUTH["Authentication"]
+        S_DATA["Unencrypted<br/>Layer 2 traffic"]
+    end
+
+    subgraph MACSEC["802.1X + MACsec"]
+        M_AUTH["Authentication +<br/>Key Agreement"]
+        M_DATA["Encrypted<br/>Layer 2 traffic"]
+    end
+
+    S_AUTH --> S_DATA
+    M_AUTH --> M_DATA
+
+    S_DATA -->|"Vulnerable to<br/>sniffing"| RISK["Risk"]
+    M_DATA -->|"Wire-speed<br/>encryption"| SECURE["Secure"]
+```
+
+## NIST Alignment
+
+### NIST SP 800-53 Control Mapping
+
+| Control ID | Control Name | 802.1X Implementation |
+|------------|--------------|----------------------|
+| AC-3 | Access Enforcement | Port-based access control |
+| AC-17 | Remote Access | VPN integration with 802.1X |
+| AU-2 | Audit Events | RADIUS accounting logs |
+| AU-3 | Content of Audit Records | Authentication success/failure details |
+| IA-2 | Identification and Authentication | EAP-TLS certificates |
+| IA-3 | Device Identification and Authentication | Device certificates, MAB |
+| IA-5 | Authenticator Management | Certificate lifecycle |
+| IA-8 | Identification and Authentication (Non-Org Users) | Guest VLAN policies |
+| SC-8 | Transmission Confidentiality | MACsec option |
+| SC-23 | Session Authenticity | EAP session binding |
+
+### NIST SP 800-63B-4 Alignment
+
+| Assurance Level | Authentication Method | 802.1X Equivalent | Status |
+|-----------------|----------------------|-------------------|--------|
+| AAL1 | Single-factor | Username/password | ❌ **Forbidden** |
+| AAL2 | Multi-factor | EAP-TLS with device certificate | ✅ Minimum required |
+| AAL3 | Hardware crypto | EAP-TLS with TPM-backed certificate | ✅ Recommended |
+
+> **Policy:** This standard requires AAL2 minimum (EAP-TLS with device certificates). AAL3 (TPM-backed certificates) is recommended for high-security environments.
+
+## Troubleshooting Guide
+
+### Common Issues and Resolution
+
+| Symptom | Likely Cause | Resolution |
+|---------|--------------|------------|
+| Authentication timeout | Supplicant not responding | Verify supplicant enabled, correct SSID/port |
+| Certificate error | Expired/untrusted certificate | Check certificate chain, validity dates |
+| RADIUS timeout | Server unreachable | Verify connectivity, shared secret |
+| VLAN assignment failure | Missing RADIUS attributes | Configure proper attributes on server |
+| Intermittent failures | Reauth during session | Increase session timeout |
+| MAB devices failing | MAC not registered | Add to authorized MAC database |
+
+### Diagnostic Flow
+
+```mermaid
+flowchart TD
+    ISSUE[Authentication Failure] --> CHECK1{EAPoL frames<br/>reaching switch?}
+    CHECK1 -->|No| FIX1[Check supplicant,<br/>port config]
+    CHECK1 -->|Yes| CHECK2{RADIUS<br/>reachable?}
+
+    CHECK2 -->|No| FIX2[Check routing,<br/>firewall rules]
+    CHECK2 -->|Yes| CHECK3{Shared secret<br/>correct?}
+
+    CHECK3 -->|No| FIX3[Update shared<br/>secret]
+    CHECK3 -->|Yes| CHECK4{Certificate<br/>valid?}
+
+    CHECK4 -->|No| FIX4[Renew certificate,<br/>check chain]
+    CHECK4 -->|Yes| CHECK5{Policy<br/>allows access?}
+
+    CHECK5 -->|No| FIX5[Update RADIUS<br/>policy]
+    CHECK5 -->|Yes| ESCALATE[Escalate to<br/>vendor support]
+```
+
+## Procurement Pass/Fail Checklist
+
+Use this checklist to evaluate 802.1X infrastructure components before purchase. Every **Required** item must pass. If any Required item fails, the component is **not approved** for procurement.
+
+### 802.1X Infrastructure Procurement Checklist
+
+| # | Requirement | Required | Pass | Fail |
+|---|-------------|----------|------|------|
+| 1 | EAP-TLS 1.3 support (RFC 9190) on authenticator and authentication server | **Yes** | ☐ | ☐ |
+| 2 | TLS 1.3 minimum (RFC 8446) for all EAP-TLS sessions | **Yes** | ☐ | ☐ |
+| 3 | RADIUS server supports redundant deployment (active/standby or load-balanced) | **Yes** | ☐ | ☐ |
+| 4 | X.509v3 certificate validation with CRL and/or OCSP revocation checking | **Yes** | ☐ | ☐ |
+| 5 | MAC Authentication Bypass (MAB) support for non-802.1X devices | **Yes** | ☐ | ☐ |
+| 6 | Dynamic VLAN assignment via RADIUS attributes (Tunnel-Private-Group-ID) | **Yes** | ☐ | ☐ |
+| 7 | Multi-domain authentication mode (voice + data VLAN) | **Yes** | ☐ | ☐ |
+| 8 | MACsec (IEEE 802.1AE) support for link-layer encryption | **Conditional** | ☐ | ☐ |
+
+### Results
+
+| Outcome | Action |
+|---------|--------|
+| All Required items pass | **Approved for procurement** |
+| Any Required item fails | **Not approved — do not purchase** |
+| Questions about a specific component | Contact Network Engineering (ITI Networking Team) |
+
+### How to Verify Requirements
+
+| Checklist Item | Where to Find |
+|----------------|---------------|
+| EAP-TLS support | Product documentation, EAP method compatibility list |
+| TLS 1.3 | Software release notes, TLS version support documentation |
+| RADIUS redundancy | Product architecture documentation, high-availability features |
+| Certificate validation (CRL/OCSP) | RADIUS server configuration guide, PKI integration documentation |
+| MAB support | Switch/AP feature list, 802.1X configuration guide |
+| Dynamic VLAN via RADIUS | RADIUS attribute support documentation, configuration guide |
+| Multi-domain mode | Switch feature list, 802.1X port mode documentation |
+| MACsec (802.1AE) | Switch datasheet, security features documentation |
+
+## References
+
+1. IEEE 802.1X-2020, "Port-Based Network Access Control," IEEE, February 2020.
+2. IEEE 802.1AE-2018, "Media Access Control (MAC) Security," IEEE, December 2018.
+3. IETF RFC 3748, "Extensible Authentication Protocol (EAP)," IETF, June 2004.
+4. IETF RFC 9190, "EAP-TLS 1.3: Using the Extensible Authentication Protocol with TLS 1.3," IETF, February 2022.
+5. IETF RFC 7170, "Tunnel Extensible Authentication Protocol (TEAP) Version 1," IETF, May 2014.
+6. IETF RFC 2865, "Remote Authentication Dial In User Service (RADIUS)," IETF, June 2000.
+7. IETF RFC 3579, "RADIUS Support for Extensible Authentication Protocol (EAP)," IETF, September 2003.
+8. NIST SP 800-53 Rev. 5, "Security and Privacy Controls for Information Systems and Organizations," NIST, September 2020.
+9. NIST SP 800-63B-4, "Digital Identity Guidelines: Authentication and Lifecycle Management," NIST, 2025.
+
+## Cross-References
+
+| Document | Relationship |
+|----------|--------------|
+| [WPA3-Enterprise Standards](wpa3-enterprise.md) | WPA3 security framework integrating with 802.1X |
+| [Port Configurations](../ethernet/port-configurations.md) | RADIUS-driven dynamic VLAN assignment on switch ports |
+| [SSID Standards](../wifi/ssid-standards.md) | EAP-TLS authentication for corporate and secure SSIDs |
+| [Network Segmentation](network-segmentation.md) | Zone-based access control via RADIUS attributes |
+| [Wireless Client Requirements](../wifi/wireless-client-requirements.md) | Client EAP-TLS and TLS 1.3 supplicant requirements |
+| [Switch Specifications](../ethernet/switch-specifications.md) | 802.1X port-based NAC on switch hardware |
+
+---
+
+*For questions about these standards, open an issue or contact the ITI Networking Team.*
