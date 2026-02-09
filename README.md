@@ -58,13 +58,13 @@ stateDiagram-v2
     end note
 
     note right of Autorizado
-        Acesso total à rede
+        Acesso à rede
         conforme atributos RADIUS
     end note
 
     note right of MAB
         MAC Authentication Bypass
-        acionado quando o 802.1X falha
+        acionado quando o 802.1X não tem retorno
     end note
 ```
 
@@ -72,16 +72,17 @@ stateDiagram-v2
 
 ```mermaid
 flowchart TD
-    START[Device Type Assessment] --> Q1{Device supports<br/>certificates?}
-    Q1 -->|Yes| Q2{MDM/PKI<br/>managed?}
-    Q1 -->|No| MAB["MAC Authentication Bypass<br/>(With segmentation + monitoring)"]
+    START[Avaliação do Tipo de Dispositivo] --> Q1{O dispositivo suporta<br/>certificados?}
 
-    Q2 -->|Yes| EAPTLS["✅ EAP-TLS<br/>(Only permitted method)"]
-    Q2 -->|No| ENROLL["Enroll in PKI/MDM<br/>before deployment"]
+    Q1 -->|Sim| Q2{Gerenciado por<br/>MDM/PKI?}
+    Q1 -->|Não| MAB["MAC Authentication Bypass (MAB)<br/>(Com segmentação)"]
+
+    Q2 -->|Sim| EAPTLS["EAP-TLS<br/>(Único permitido)"]
+    Q2 -->|Não| ENROLL["Registrar no PKI/MDM<br/>antes da implantação"]
 
     ENROLL --> EAPTLS
 
-    EAPTLS --> RESULT[Apply VLAN/ACL policy]
+    EAPTLS --> RESULT[Aplicar política de Acesso/VLAN/ACL/TAG]
     MAB --> RESULT
 ```
 
@@ -89,34 +90,85 @@ flowchart TD
 
 ```mermaid
 sequenceDiagram
-    participant S as Supplicant
-    participant A as Authenticator
-    participant R as RADIUS Server
-    participant D as Directory/CA
+    participant S as Suplicante
+    participant A as Autenticador
+    participant R as Servidor RADIUS
+    participant D as Diretório / CA
 
-    Note over S,A: Port starts in unauthorized state
+    Note over S,A: Porta inicia no estado não autorizado
     S->>A: EAPoL-Start
     A->>S: EAP-Request/Identity
     S->>A: EAP-Response/Identity
     A->>R: RADIUS Access-Request (EAP)
 
-    Note over S,R: EAP Method Exchange (e.g., EAP-TLS)
+    Note over S,R: Troca do método EAP (ex: EAP-TLS)
     R->>A: RADIUS Access-Challenge
-    A->>S: EAP-Request (Method)
-    S->>A: EAP-Response (Credentials)
+    A->>S: EAP-Request (Método)
+    S->>A: EAP-Response (Credenciais)
     A->>R: RADIUS Access-Request
 
-    R->>D: Validate credentials/certificate
-    D->>R: Validation result
+    R->>D: Validação de credenciais/certificado
+    D->>R: Resultado da validação
 
-    alt Authentication Success
-        R->>A: RADIUS Access-Accept<br/>(VLAN, ACL attributes)
+    alt Sucesso na Autenticação
+        R->>A: RADIUS Access-Accept<br/>(Atributos de VLAN e ACL)
         A->>S: EAP-Success
-        Note over S,A: Port transitions to authorized state
-    else Authentication Failure
+        Note over S,A: Porta transita para o estado autorizado
+    else Falha na Autenticação
         R->>A: RADIUS Access-Reject
         A->>S: EAP-Failure
-        Note over S,A: Port remains unauthorized
+        Note over S,A: Porta permanece não autorizada
+    end
+```
+
+### Autenticação EAP-TEAP
+
+```mermaid
+sequenceDiagram
+    participant S as Suplicante
+    participant A as Autenticador
+    participant R as Servidor RADIUS (Cisco ISE)
+    participant D as Diretório / CA
+
+    Note over S,A: Porta inicia no estado não autorizado
+
+    %% Fase 1 - Estabelecimento do túnel TLS
+    S->>A: EAPoL-Start
+    A->>S: EAP-Request/Identity
+    S->>A: EAP-Response/Identity
+    A->>R: RADIUS Access-Request (EAP-TEAP)
+
+    Note over S,R: Estabelecimento do túnel TLS (TEAP Outer Tunnel)
+    R->>A: RADIUS Access-Challenge (TLS Handshake)
+    A->>S: EAP-Request (TEAP/TLS)
+    S->>A: EAP-Response (TLS Handshake)
+    A->>R: RADIUS Access-Request (TEAP/TLS)
+
+    R->>D: Validação do certificado do servidor
+    D->>R: Resultado da validação
+
+    %% Fase 2 - Autenticação interna (Inner Authentication)
+    Note over S,R: Autenticação interna dentro do túnel TEAP
+
+    S->>A: TEAP-Response (Credenciais de Máquina)
+    A->>R: RADIUS Access-Request (Machine Auth)
+    R->>D: Validação da identidade da máquina
+    D->>R: Resultado da validação
+
+    S->>A: TEAP-Response (Credenciais do Usuário)
+    A->>R: RADIUS Access-Request (User Auth)
+    R->>D: Validação da identidade do usuário
+    D->>R: Resultado da validação
+
+    %% Decisão de política
+    alt Sucesso na Autenticação (Máquina + Usuário)
+        R->>A: RADIUS Access-Accept<br/>(VLAN, dACL, SGT)
+        A->>S: EAP-Success
+        Note over S,A: Porta transita para o estado autorizado
+    else Falha na Autenticação
+        R->>A: RADIUS Access-Reject
+        A->>S: EAP-Failure
+        Note over S,A: Porta permanece não autorizada
     end
 ```
 
@@ -124,20 +176,67 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    DEVICE[Device connects] --> DOT1X{802.1X<br/>capable?}
-    DOT1X -->|Yes| AUTH[Normal 802.1X auth]
-    DOT1X -->|No/Timeout| MAB_START[MAB initiated]
+    DEVICE[Dispositivo conecta] --> DOT1X{Compatível com<br/>802.1X?}
 
-    MAB_START --> MAC_CHECK{MAC in<br/>database?}
-    MAC_CHECK -->|Yes| PROFILE{Device profile<br/>match?}
-    MAC_CHECK -->|No| QUARANTINE[Quarantine VLAN]
+    DOT1X -->|Sim| AUTH[Autenticação 802.1X padrão]
+    DOT1X -->|Não/Timeout| MAB_START[Início do MAB]
 
-    PROFILE -->|Yes| ASSIGN[Assign policy VLAN]
-    PROFILE -->|No| QUARANTINE
+    MAB_START --> MAC_CHECK{MAC presente<br/>na base de dados?}
+    MAC_CHECK -->|Sim| PROFILE{Perfil do dispositivo<br/>corresponde?}
+    MAC_CHECK -->|Não| QUARANTINE[VLAN de quarentena]
 
-    ASSIGN --> MONITOR[Continuous monitoring<br/>for anomalies]
-    QUARANTINE --> ALERT[Security alert]
+    PROFILE -->|Sim| ASSIGN[Atribuir VLAN de política]
+    PROFILE -->|Não| QUARANTINE
+
+    ASSIGN --> MONITOR[Monitoramento contínuo<br/>de anomalias]
+    QUARANTINE --> ALERT[Alerta de segurança]
 ```
+
+### Autenticação EAP-TEAP + MAB
+sequenceDiagram
+    participant S as Suplicante
+    participant A as Autenticador (Switch/AP)
+    participant R as Servidor RADIUS (Cisco ISE)
+    participant D as Diretório / CA
+
+    Note over S,A: Porta inicia no estado não autorizado
+
+    %% Fase 1 - Tentativa TEAP (802.1X)
+    S->>A: EAPoL-Start
+    A->>S: EAP-Request/Identity
+    S->>A: EAP-Response/Identity
+    A->>R: RADIUS Access-Request (EAP-TEAP)
+
+    Note over S,R: Estabelecimento do túnel TLS (TEAP)
+    R->>A: RADIUS Access-Challenge (TEAP/TLS)
+    A->>S: EAP-Request (TEAP/TLS)
+    S->>A: EAP-Response (TEAP/TLS)
+    A->>R: RADIUS Access-Request (TEAP/TLS)
+
+    %% Autenticação interna TEAP
+    R->>D: Validação de identidades (máquina/usuário)
+    D->>R: Resultado da validação
+
+    alt TEAP bem-sucedido
+        R->>A: RADIUS Access-Accept<br/>(VLAN, dACL, SGT)
+        A->>S: EAP-Success
+        Note over S,A: Porta autorizada via TEAP
+    else TEAP falhou ou não suportado
+        Note over S,A: Fallback para MAB
+
+        %% Fase 2 - MAB
+        A->>R: RADIUS Access-Request (MAC Address)
+        R->>D: Consulta de MAC / Profiling
+        D->>R: Resultado da validação
+
+        alt MAB autorizado
+            R->>A: RADIUS Access-Accept<br/>(Política restrita)
+            Note over S,A: Porta autorizada via MAB
+        else MAB rejeitado
+            R->>A: RADIUS Access-Reject
+            Note over S,A: Porta permanece não autorizada
+        end
+    end
 
 ### MAB Configuration Requirements
 
