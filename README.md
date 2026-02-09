@@ -1,6 +1,6 @@
 # Diagramas-Dot1x
 
-
+```mermaid
 graph LR
     subgraph ENDPOINT["Endpoint Layer"]
         SUP["Supplicant<br/>(Client software)"]
