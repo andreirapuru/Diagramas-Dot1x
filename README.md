@@ -464,37 +464,32 @@ flowchart LR
 
 > **Policy:** This standard requires AAL2 minimum (EAP-TLS with device certificates). AAL3 (TPM-backed certificates) is recommended for high-security environments.
 
-## Troubleshooting Guide
+## Guia para Resolução de ProblemasTroubleshooting Guide
 
-### Common Issues and Resolution
+| Sintoma                     | Causa Provável                        | Resolução                                                                  |
+| --------------------------- | ------------------------------------- | -------------------------------------------------------------------------- |
+| Timeout de autenticação     | Suplicante não respondendo            | Verificar se o suplicante está habilitado e se o SSID/porta estão corretos |
+| Erro de certificado         | Certificado expirado ou não confiável | Verificar a cadeia de certificados e datas de validade                     |
+| Timeout de RADIUS           | Servidor inacessível                  | Verificar conectividade e shared secret                                    |
+| Falha na atribuição de VLAN | Atributos RADIUS ausentes             | Configurar os atributos corretos no servidor                               |
+| Falhas intermitentes        | Reautenticação durante a sessão       | Aumentar o tempo de sessão                                                 |
+| Falha em dispositivos MAB   | MAC não registrado                    | Adicionar o MAC à base de endereços autorizados                            |
 
-| Symptom | Likely Cause | Resolution |
-|---------|--------------|------------|
-| Authentication timeout | Supplicant not responding | Verify supplicant enabled, correct SSID/port |
-| Certificate error | Expired/untrusted certificate | Check certificate chain, validity dates |
-| RADIUS timeout | Server unreachable | Verify connectivity, shared secret |
-| VLAN assignment failure | Missing RADIUS attributes | Configure proper attributes on server |
-| Intermittent failures | Reauth during session | Increase session timeout |
-| MAB devices failing | MAC not registered | Add to authorized MAC database |
 
 ### Diagnostic Flow
 
 ```mermaid
 flowchart TD
-    ISSUE[Authentication Failure] --> CHECK1{EAPoL frames<br/>reaching switch?}
-    CHECK1 -->|No| FIX1[Check supplicant,<br/>port config]
-    CHECK1 -->|Yes| CHECK2{RADIUS<br/>reachable?}
-
-    CHECK2 -->|No| FIX2[Check routing,<br/>firewall rules]
-    CHECK2 -->|Yes| CHECK3{Shared secret<br/>correct?}
-
-    CHECK3 -->|No| FIX3[Update shared<br/>secret]
-    CHECK3 -->|Yes| CHECK4{Certificate<br/>valid?}
-
-    CHECK4 -->|No| FIX4[Renew certificate,<br/>check chain]
-    CHECK4 -->|Yes| CHECK5{Policy<br/>allows access?}
-
-    CHECK5 -->|No| FIX5[Update RADIUS<br/>policy]
-    CHECK5 -->|Yes| ESCALATE[Escalate to<br/>vendor support]
+    ISSUE[Falha de autenticação] --> CHECK1{Quadros EAPoL<br/>chegam ao switch?}
+    CHECK1 -->|Não| FIX1[Verificar suplicante,<br/>configuração da porta]
+    CHECK1 -->|Sim| CHECK2{Servidor RADIUS<br/>acessível?}
+    CHECK2 -->|Não| FIX2[Verificar roteamento,<br/>regras de firewall]
+    CHECK2 -->|Sim| CHECK3{Shared secret<br/>correto?}
+    CHECK3 -->|Não| FIX3[Atualizar shared secret]
+    CHECK3 -->|Sim| CHECK4{Certificado<br/>válido?}
+    CHECK4 -->|Não| FIX4[Renovar certificado,<br/>verificar cadeia]
+    CHECK4 -->|Sim| CHECK5{Política permite<br/>o acesso?}
+    CHECK5 -->|Não| FIX5[Ajustar política RADIUS]
+    CHECK5 -->|Sim| ESCALATE[Escalonar para<br/>suporte do fabricante]
 ```
 
