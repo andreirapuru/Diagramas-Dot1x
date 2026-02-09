@@ -22,7 +22,7 @@ graph LR
     AUTH <-->|"RADIUS<br/>(UDP 1812/1813)"| RADIUS
     RADIUS <--> AD
     RADIUS <--> CA
-    
+```    
 
 ### Authentication Flow
 
