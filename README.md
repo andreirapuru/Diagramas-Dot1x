@@ -1,65 +1,71 @@
 ## Arquitetura 802.1X
 
 ### Componentes
-
 ```mermaid
 graph LR
-    subgraph ENDPOINT["Endpoint Layer"]
-        SUP["Supplicant<br/>(Client software)"]
+    subgraph ENDPOINT["Camada de Endpoint"]
+        SUP["Cliente 802.1X (Supplicant)<br/>Dispositivos corporativos"]
+        IOT["Dispositivos sem 802.1X<br/>(IoT / Impressoras / Telefones IP)"]
+        GUEST["Dispositivos de Convidados"]
     end
 
-    subgraph NETWORK["Network Layer"]
-        AUTH["Authenticator<br/>(Switch/AP)"]
+    subgraph ACCESS["Camada de Acesso à Rede"]
+        AUTH["Dispositivo de Acesso (Authenticator)<br/>NADs - Switch / Access Point"]
     end
 
-    subgraph BACKEND["Backend Layer"]
-        RADIUS["Authentication/NAC Server<br/>(RADIUS)"]
-        AD["Directory Service"]
-        CA["Certificate Authority"]
+    subgraph IDENTITY["Camada de Identidade e Controle de Acesso"]
+        ISE["Cisco Identity Services Engine (ISE)<br/>RADIUS / Policy Engine Server"]
+        AD["Active Directory / LDAP"]
+        PKI["Infraestrutura PKI / Autoridade Certificadora"]
     end
 
-    SUP <-->|"EAP over LAN<br/>(EAPoL)"| AUTH
-    AUTH <-->|"RADIUS<br/>(UDP 1812/1813)"| RADIUS
-    RADIUS <--> AD
-    RADIUS <--> CA
-```    
+    %% Fluxos de autenticação
+    SUP <-->|"802.1X / EAPoL"| AUTH
+    IOT <-->|"MAB (MAC Authentication Bypass)"| AUTH
+    GUEST <-->|"Acesso Web / Captive Portal"| AUTH
+
+    AUTH <-->|"RADIUS (UDP 1812/1813)"| ISE
+
+    %% Integrações do ISE
+    ISE <--> AD
+    ISE <--> PKI
+```
 
 ### Estado da porta
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Unauthorized: Port link up
+    [*] --> Não_Autorizado: Link da porta ativo
 
-    Unauthorized --> Authenticating: EAPoL-Start received
+    Não_Autorizado --> Autenticando: EAPoL-Start recebido
 
-    Authenticating --> Authorized: Access-Accept (802.1X)
-    Authenticating --> Unauthorized: Access-Reject (802.1X)
-    Authenticating --> MAB: Timeout (no EAPoL)
+    Autenticando --> Autorizado: Access-Accept (802.1X)
+    Autenticando --> Não_Autorizado: Access-Reject (802.1X)
+    Autenticando --> MAB: Timeout (sem EAPoL)
 
-    MAB --> Authorized: Access-Accept (MAB)
-    MAB --> Unauthorized: Access-Reject (MAB)
+    MAB --> Autorizado: Access-Accept (MAB)
+    MAB --> Não_Autorizado: Access-Reject (MAB)
 
-    Authorized --> Unauthorized: Logoff / Link down
-    Authorized --> Reauthenticating: Reauth timer
+    Autorizado --> Não_Autorizado: Logoff / Link down
+    Autorizado --> Reautenticando: Timer de reautenticação
 
-    Reauthenticating --> Authorized: Access-Accept
-    Reauthenticating --> Unauthorized: Access-Reject
+    Reautenticando --> Autorizado: Access-Accept
+    Reautenticando --> Não_Autorizado: Access-Reject
 
-    note right of Unauthorized
-        No traffic permitted
-        except EAPoL frames
+    note right of Não_Autorizado
+        Nenhum tráfego permitido
+        exceto quadros EAPoL
     end note
 
-    note right of Authorized
-        Full network access
-        per RADIUS attributes
+    note right of Autorizado
+        Acesso total à rede
+        conforme atributos RADIUS
     end note
 
     note right of MAB
         MAC Authentication Bypass
-        triggered when 802.1X fails
+        acionado quando o 802.1X falha
     end note
-
 ```
 
 ### Escolha do Método de Autenticação
