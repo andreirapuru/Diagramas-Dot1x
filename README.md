@@ -1,48 +1,5 @@
 # Arquitetura 802.1X
 
-## Overview
-
-Este repositório reúne diagramas e materiais técnicos relacionados à implementação do controle de acesso à rede baseado em identidade, com foco nos mecanismos IEEE 802.1X e MAC Authentication Bypass (MAB), integrados a soluções de Network Access Control (NAC), como o Cisco ISE.
-
-O objetivo principal é fornecer representações visuais e conceituais que apoiem o entendimento da arquitetura, dos fluxos de autenticação e autorização, bem como das interações entre dispositivos de rede, servidores de autenticação, diretórios corporativos e endpoints. Os diagramas foram elaborados para servir como referência em atividades de design, implantação, troubleshooting e documentação de ambientes corporativos.
-
-Parte do conteúdo deste repositório foi inspirada e adaptada de padrões e boas práticas de mercado, incluindo materiais open source, e foi expandida com novos cenários, topologias e casos de uso, refletindo requisitos comuns em ambientes empresariais e industriais.
-
-Este material pode ser utilizado como base para estudos, projetos de arquitetura, documentação técnica e capacitação em tecnologias de controle de acesso à rede.
-
-
-| Document | Description |
-|----------|-------------|
-| [Componentes 802.1x](docs/Componentes.md) | Principais componentes 802.1x |
-| [Tipos de Autenticação](docs/Autenticacao.md) | Autenticações 802.1x e MAB |
-
-
-## Atribuição e Licença
-
-Este repositório foi desenvolvido com base em materiais do projeto:
-
-- **City of New Orleans – Network Standards**
-- Repositório original: https://github.com/NewOrleansITI/networkstandards
-- Licença: Creative Commons Attribution 4.0 International (CC BY 4.0)
-
-O conteúdo original foi adaptado e expandido. As principais modificações incluem:
-- Edição e adaptação de diagramas de rede
-- Inclusão de novos conteúdos técnicos
-- Ajustes de terminologia e estrutura
-
-Este projeto não possui vínculo oficial com o City of New Orleans ou com seus autores originais, nem representa endosso por parte deles.
-
-## Licença
-
-Parte do conteúdo deste repositório é derivada de material licenciado sob a licença Creative Commons Attribution 4.0 International (CC BY 4.0).
-
-Para mais informações sobre a licença, acesse:
-https://creativecommons.org/licenses/by/4.0/
-
-
---------------------
-# Diagramas 802.1X e MAB
-
 Este repositório reúne diagramas, conceitos e materiais técnicos relacionados à implementação de controle de acesso à rede baseado em identidade, com foco nos mecanismos **IEEE 802.1X** e **MAC Authentication Bypass (MAB)**, integrados a soluções de **Network Access Control (NAC)**, como o Cisco ISE.
 
 ---
