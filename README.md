@@ -12,4 +12,12 @@ Este repositorio tem por objetivo armazenar fluxogramas, ilustrações e paramet
 
 
 
+## Attribution
 
+This repository is based on content from the project:
+
+- "City of New Orleans Network Standards"
+- Original repository: https://github.com/NewOrleansITI/networkstandards
+- License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+Modifications were made, including edits to diagrams and additional content.
