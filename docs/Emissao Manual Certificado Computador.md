@@ -27,6 +27,7 @@ Componentes envolvidos:
 ### 1) Template de certificado
 
 Template configurado na CA com as seguintes características:
+```
 - Nome: Computer-External
 - Baseado em: Computer ou Workstation Authentication
 - Subject Name: Supply in the request
@@ -36,6 +37,7 @@ Template configurado na CA com as seguintes características:
 - Permissões:
 - Grupo PKI-Admins → Read + Enroll
 - Template devidamente publicado na CA.
+```
 
 ### 2) Acesso à CA
 
