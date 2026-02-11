@@ -8,34 +8,34 @@ O processo utiliza CSR (Certificate Signing Request) gerado localmente e emissã
 ## Objetivo
 
 Permitir que máquinas fora do domínio obtenham certificados digitais emitidos pela CA corporativa para uso em:
-802.1X (NAC / Cisco ISE / NPS)
-VPN
-Autenticação mútua TLS
-Serviços internos
-Dispositivos em DMZ ou ambientes isolados
+- 802.1X (NAC / Cisco ISE / NPS)
+- VPN
+- Autenticação mútua TLS
+- Serviços internos
+- Dispositivos em DMZ ou ambientes isolados
 
 ## Arquitetura
 
 Componentes envolvidos:
-MSAD (Active Directory Domain Services)
-MSAD-CA (Active Directory Certificate Services)
-Template dedicado: Computer-External
-Máquina fora do domínio: WIN10
+- MSAD (Active Directory Domain Services)
+- MSAD-CA (Active Directory Certificate Services)
+- Template dedicado: Computer-External
+- Máquina fora do domínio: WIN10
 
 ## Pré-requisitos
 
 ### 1) Template de certificado
 
 Template configurado na CA com as seguintes características:
-Nome: Computer-External
-Baseado em: Computer ou Workstation Authentication
-Subject Name: Supply in the request
-EKU:
-Client Authentication
-Server Authentication
-Permissões:
-Grupo PKI-Admins → Read + Enroll
-Template devidamente publicado na CA.
+- Nome: Computer-External
+- Baseado em: Computer ou Workstation Authentication
+- Subject Name: Supply in the request
+- EKU:
+- Client Authentication
+- Server Authentication
+- Permissões:
+- Grupo PKI-Admins → Read + Enroll
+- Template devidamente publicado na CA.
 
 ### 2) Acesso à CA
 
@@ -49,7 +49,8 @@ certreq no servidor da CA
 ### 1.1 Criar arquivo INF
 
 Criar o arquivo machine.inf:
-> [Version]
+```
+[Version]
 Signature="$Windows NT$"
 
 [NewRequest]
@@ -65,6 +66,7 @@ KeyUsage = 0xa0
 2.5.29.17 = "{text}"
 _continue_ = "dns=WIN10"
 _continue_ = "dns=WIN10.seudominio.local"
+```
 
 ### 1.2 Gerar CSR
 
