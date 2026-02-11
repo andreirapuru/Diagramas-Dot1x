@@ -93,7 +93,7 @@ http://MSAD-CA/certsrv
 - Submit a certificate request
 3) Colar o conteúdo do arquivo machine.req
 - Selecionar o template:
-- - Computer-External
+  - Computer-External
 
 Emitir e baixar o certificado em formato Base64 (.cer)
 
