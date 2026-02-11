@@ -77,22 +77,23 @@ Executar no Prompt de Comando como Administrador:
 certreq -new machine.inf machine.req
 ```
 Resultado:
-Arquivo CSR gerado: machine.req
+- Arquivo CSR gerado: machine.req
 
 ### 2) Emitir certificado na CA
 
 Método A — Web Enrollment (padrão suporte)
 
-Acessar:
+1) Acessar:
+```
 http://MSAD-CA/certsrv
-
-Selecionar:
-Request a certificate
-Advanced certificate request
-Submit a certificate request
-Colar o conteúdo do arquivo machine.req
-Selecionar o template:
-Computer-External
+```
+2) Selecionar:
+- Request a certificate
+- Advanced certificate request
+- Submit a certificate request
+3) Colar o conteúdo do arquivo machine.req
+- Selecionar o template:
+- - Computer-External
 
 Emitir e baixar o certificado em formato Base64 (.cer)
 
