@@ -40,8 +40,8 @@ Template configurado na CA com as seguintes características:
 ### 2) Acesso à CA
 
 Um dos métodos abaixo:
-Web Enrollment: http://MSAD-CA/certsrv
-certreq no servidor da CA
+- Web Enrollment: http://MSAD-CA/certsrv
+- certreq no servidor da CA
 
 ## Procedimento Operacional
 
@@ -71,8 +71,9 @@ _continue_ = "dns=WIN10.seudominio.local"
 ### 1.2 Gerar CSR
 
 Executar no Prompt de Comando como Administrador:
+```
 certreq -new machine.inf machine.req
-
+```
 Resultado:
 Arquivo CSR gerado: machine.req
 
