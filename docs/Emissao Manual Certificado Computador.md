@@ -45,8 +45,8 @@ certreq no servidor da CA
 
 ## Procedimento Operacional
 
-###1) Gerar CSR na máquina fora do domínio
-###1.1 Criar arquivo INF
+### 1) Gerar CSR na máquina fora do domínio
+### 1.1 Criar arquivo INF
 
 Criar o arquivo machine.inf:
 [Version]
@@ -66,7 +66,7 @@ KeyUsage = 0xa0
 _continue_ = "dns=WIN10"
 _continue_ = "dns=WIN10.seudominio.local"
 
-###1.2 Gerar CSR
+### 1.2 Gerar CSR
 
 Executar no Prompt de Comando como Administrador:
 certreq -new machine.inf machine.req
@@ -74,7 +74,7 @@ certreq -new machine.inf machine.req
 Resultado:
 Arquivo CSR gerado: machine.req
 
-###2) Emitir certificado na CA
+### 2) Emitir certificado na CA
 
 Método A — Web Enrollment (padrão suporte)
 
@@ -95,13 +95,13 @@ Método B — certreq no servidor da CA
 
 certreq -submit -attrib "CertificateTemplate:Computer-External" machine.req machine.cer
 
-###3) Instalar certificado na máquina WIN10
+### 3) Instalar certificado na máquina WIN10
 
 Copiar o arquivo machine.cer para a máquina WIN10 e executar:
 
 certreq -accept machine.cer
 
-###4) Instalar cadeia de certificação (obrigatório)
+### 4) Instalar cadeia de certificação (obrigatório)
 
 Importar os certificados da CA:
 Root CA
@@ -111,7 +111,7 @@ Intermediate CA (se aplicável)
 Local:
 Local Computer → Intermediate Certification Authorities
 
-###5) Validação
+### 5) Validação
 
 Abrir:
 certlm.msc
@@ -127,7 +127,7 @@ Comando adicional:
 
 certutil -store my
 
-##⚠️ Observações Importantes
+## Observações Importantes
 
 Segurança PKI
 ❌ Não utilizar o template padrão "Computer" para máquinas fora do domínio.
