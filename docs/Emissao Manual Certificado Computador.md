@@ -1,11 +1,11 @@
-#🧾 Emissão de Certificado de Máquina fora do Domínio (AD CS)
+# Emissão de Certificado de Máquina fora do Domínio (AD CS)
 
-##📌 Visão Geral
+## Visão Geral
 
 Este documento descreve o procedimento para emissão manual de certificados de máquina para computadores Windows fora do domínio Active Directory, utilizando a infraestrutura de PKI corporativa baseada em Microsoft AD CS (MSAD-CA).
 O processo utiliza CSR (Certificate Signing Request) gerado localmente e emissão via template dedicado na CA do domínio.
 
-##🎯 Objetivo
+## Objetivo
 
 Permitir que máquinas fora do domínio obtenham certificados digitais emitidos pela CA corporativa para uso em:
 802.1X (NAC / Cisco ISE / NPS)
@@ -14,7 +14,7 @@ Autenticação mútua TLS
 Serviços internos
 Dispositivos em DMZ ou ambientes isolados
 
-##🏗️ Arquitetura
+## Arquitetura
 
 Componentes envolvidos:
 MSAD (Active Directory Domain Services)
@@ -22,9 +22,9 @@ MSAD-CA (Active Directory Certificate Services)
 Template dedicado: Computer-External
 Máquina fora do domínio: WIN10
 
-##🔐 Pré-requisitos
+## Pré-requisitos
 
-###1) Template de certificado
+### Template de certificado
 
 Template configurado na CA com as seguintes características:
 Nome: Computer-External
@@ -37,13 +37,13 @@ Permissões:
 Grupo PKI-Admins → Read + Enroll
 Template devidamente publicado na CA.
 
-###2) Acesso à CA
+### 2) Acesso à CA
 
 Um dos métodos abaixo:
 Web Enrollment: http://MSAD-CA/certsrv
 certreq no servidor da CA
 
-##🧩 Procedimento Operacional
+## Procedimento Operacional
 
 ###1) Gerar CSR na máquina fora do domínio
 ###1.1 Criar arquivo INF
